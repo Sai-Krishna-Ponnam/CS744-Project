@@ -8,6 +8,7 @@ from torchvision import models, datasets, transforms
 from torch.utils.data import DataLoader, DistributedSampler
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import ShardingStrategy
+from torch.utils.tensorboard import SummaryWriter
 
 def setup():
     """Initialize distributed training environment."""
@@ -97,6 +98,12 @@ def train():
         print(f"Rank {rank}, Epoch [{epoch+1}/5], Loss: {loss.item():.4f}, Train Accuracy: {accuracy:.2f}%")
         compute_accuracy(model, test_dataloader, local_rank, criterion)
 
+        writer.add_scalar('Loss/train', loss.item(), epoch)
+        writer.add_scalar('Accuracy/train', accuracy, epoch)
+    
+        # Optionally, add model parameters, gradients, histograms, etc.
+        writer.add_histogram('model_weights', model.parameters(), epoch)
+
     if rank == 0:
         torch.save(model.module.state_dict(), "vgg16_fsdp.pth")
         print("Model saved successfully!")
@@ -104,4 +111,6 @@ def train():
     cleanup()
 
 if __name__ == "__main__":
+    writer = SummaryWriter(log_dir='./runs/vgg_fsdp')
     train()
+    writer.close()

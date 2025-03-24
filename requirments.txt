@@ -4,3 +4,5 @@ torchaudio
 matplotlib
 numpy
 pandas
+deepspeed
+tensorboard
