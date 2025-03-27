@@ -10,13 +10,16 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import ShardingStrategy
 from torch.utils.tensorboard import SummaryWriter
 
+
 def setup():
     """Initialize distributed training environment."""
     dist.init_process_group(backend="nccl")  # NCCL for GPUs
 
+
 def cleanup():
     """Destroy the process group after training."""
     dist.destroy_process_group()
+
 
 def compute_accuracy(model, dataloader, device, criterion):
     model.eval()
@@ -40,7 +43,7 @@ def compute_accuracy(model, dataloader, device, criterion):
 def train():
     """Distributed training function."""
     setup()
-    
+
     rank = dist.get_rank()
     world_size = dist.get_world_size()
     local_rank = int(os.environ["LOCAL_RANK"])  # Rank within the node
@@ -53,11 +56,13 @@ def train():
     model = FSDP(model, sharding_strategy=ShardingStrategy.FULL_SHARD)
 
     # Dataset & Dataloader
-    transform = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-    ])
-    
+    transform = transforms.Compose(
+        [
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+        ]
+    )
+
     train_dataset = datasets.CIFAR10(root="./data", train=True, download=True, transform=transform)
     test_dataset = datasets.CIFAR10(root="./data", train=False, download=True, transform=transform)
 
@@ -93,16 +98,16 @@ def train():
             step += 1
             if step % 100 == 0 and rank == 0:  # Log only from rank 0
                 print(f"Rank {rank}, Step {step}, Epoch [{epoch+1}/5], Loss: {loss.item():.4f}")
-        
+
         accuracy = 100 * correct / total
         print(f"Rank {rank}, Epoch [{epoch+1}/5], Loss: {loss.item():.4f}, Train Accuracy: {accuracy:.2f}%")
         compute_accuracy(model, test_dataloader, local_rank, criterion)
 
-        writer.add_scalar('Loss/train', loss.item(), epoch)
-        writer.add_scalar('Accuracy/train', accuracy, epoch)
-    
+        writer.add_scalar("Loss/train", loss.item(), epoch)
+        writer.add_scalar("Accuracy/train", accuracy, epoch)
+
         # Optionally, add model parameters, gradients, histograms, etc.
-        writer.add_histogram('model_weights', model.parameters(), epoch)
+        writer.add_histogram("model_weights", model.parameters(), epoch)
 
     if rank == 0:
         torch.save(model.module.state_dict(), "vgg16_fsdp.pth")
@@ -110,7 +115,8 @@ def train():
 
     cleanup()
 
+
 if __name__ == "__main__":
-    writer = SummaryWriter(log_dir='./runs/vgg_fsdp')
+    writer = SummaryWriter(log_dir="./runs/vgg_fsdp")
     train()
     writer.close()

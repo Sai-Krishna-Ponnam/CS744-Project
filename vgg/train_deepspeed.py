@@ -10,6 +10,7 @@ from deepspeed.ops.adam import DeepSpeedCPUAdam
 from torch.utils.tensorboard import SummaryWriter
 import argparse
 
+
 # Define the VGG model
 class VGGModel(nn.Module):
     def __init__(self):
@@ -20,63 +21,50 @@ class VGGModel(nn.Module):
     def forward(self, x):
         return self.model(x)
 
+
 # DeepSpeed Config
 deepspeed_config = {
     "train_micro_batch_size_per_gpu": 32,
-    "optimizer": {
-        "type": "Adam",
-        "params": {
-            "lr": 0.001,
-            "betas": [0.9, 0.999],
-            "eps": 1e-8
-        }
-    },
-    "fp16": {
-        "enabled": False
-    },
-    "zero_optimization": {
-        "stage": 2  # ZeRO stage 2 offloads optimizer state to CPU for memory efficiency
-    }
+    "optimizer": {"type": "AdamW", "params": {"lr": 0.001, "betas": [0.9, 0.999], "eps": 1e-8, "weight_decay": 1e-2}},
+    "fp16": {"enabled": False},
+    "zero_optimization": {"stage": 2},
 }
+
 
 # Initialize DeepSpeed
 def setup_deepspeed(args, model):
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     model, optimizer, _, _ = deepspeed.initialize(
-        args=args, 
-        model=model, 
-        model_parameters=parameters, 
-        config=deepspeed_config
+        args=args, model=model, model_parameters=parameters, config=deepspeed_config
     )
     return model, optimizer
 
+
 def cleanup():
     if dist.is_initialized():
-       dist.destroy_process_group()
-    
+        dist.destroy_process_group()
 
-def train():
+
+def train(args):
     torch.manual_seed(42)  # Set seed for reproducibility
 
     # Distributed initialization
     deepspeed.init_distributed()
 
     # Setup TensorBoard
-    writer = SummaryWriter(log_dir='./runs/deepspeed_experiment')
+    writer = SummaryWriter(log_dir="./runs/deepspeed_experiment")
 
     # Define model and wrap it with DeepSpeed
     model = VGGModel()
-    parser = argparse.ArgumentParser(description="DeepSpeed Training Script")
-    parser.add_argument("--local_rank", type=int, default=-1, help="Local rank for distributed training")
-    args = deepspeed.add_config_arguments(parser)
-    args = parser.parse_args()
     model, optimizer = setup_deepspeed(args, model)
 
     # Data transforms
-    transform = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-    ])
+    transform = transforms.Compose(
+        [
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+        ]
+    )
 
     # Load CIFAR-10 dataset
     train_dataset = datasets.CIFAR10(root="./data", train=True, download=True, transform=transform)
@@ -116,14 +104,13 @@ def train():
             step += 1
             if step % 100 == 0:  # Log only from rank 0
                 print(f"Rank {model.global_rank}, Step {step}, Epoch [{epoch+1}/5], Loss: {loss.item():.4f}")
-       
 
         train_loss = running_loss / len(train_dataloader)
-        train_accuracy = 100. * correct / total
+        train_accuracy = 100.0 * correct / total
 
         # Log metrics to TensorBoard
-        writer.add_scalar('Loss/train', train_loss, epoch)
-        writer.add_scalar('Accuracy/train', train_accuracy, epoch)
+        writer.add_scalar("Loss/train", train_loss, epoch)
+        writer.add_scalar("Accuracy/train", train_accuracy, epoch)
 
         print(f"Epoch {epoch+1}/{epochs}, Loss: {train_loss:.4f}, Accuracy: {train_accuracy:.2f}%")
 
@@ -134,5 +121,11 @@ def train():
     writer.close()
     cleanup()
 
+
 if __name__ == "__main__":
-    train()
+    parser = argparse.ArgumentParser(description="DeepSpeed Training Script")
+    parser.add_argument("--local_rank", type=int, default=-1, help="Local rank for distributed training")
+    args = deepspeed.add_config_arguments(parser)
+    args = parser.parse_args()
+
+    train(args)

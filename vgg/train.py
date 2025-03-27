@@ -7,13 +7,16 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torchvision import models, datasets, transforms
 from torch.utils.data import DataLoader, DistributedSampler
 
+
 def setup():
     """Initialize distributed training environment."""
     dist.init_process_group(backend="nccl")  # NCCL for GPUs
 
+
 def cleanup():
     """Destroy the process group after training."""
     dist.destroy_process_group()
+
 
 def compute_accuracy(model, dataloader, device, criterion):
     model.eval()
@@ -37,12 +40,11 @@ def compute_accuracy(model, dataloader, device, criterion):
 def train():
     """Distributed training function."""
     setup()
-    
+
     rank = dist.get_rank()
     world_size = dist.get_world_size()
     local_rank = int(os.environ["LOCAL_RANK"])  # Rank within the node
     print(f"Rank: {rank}, World size: {world_size}, Local rank: {local_rank}")
-
 
     torch.cuda.set_device(local_rank)
 
@@ -51,11 +53,13 @@ def train():
     model = DDP(model, device_ids=[local_rank])
 
     # Dataset & Dataloader
-    transform = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-    ])
-    
+    transform = transforms.Compose(
+        [
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+        ]
+    )
+
     dataset = datasets.CIFAR10(root="./data", train=True, download=True, transform=transform)
     sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=False, sampler=sampler)
@@ -92,7 +96,7 @@ def train():
             step += 1
             if step % 100 == 0 and rank == 0:  # Log only from rank 0
                 print(f"Rank {rank}, Step {step}, Epoch [{epoch+1}/5], Loss: {loss.item():.4f}")
-        
+
         accuracy = 100 * correct / total
         print(f"Rank {rank}, Epoch [{epoch+1}/5], Loss: {loss.item():.4f}, Train Accuracy: {accuracy:.2f}%")
         compute_accuracy(model, test_loader, local_rank, criterion)
@@ -102,6 +106,7 @@ def train():
         print("Model saved successfully!")
 
     cleanup()
+
 
 if __name__ == "__main__":
     train()
