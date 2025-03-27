@@ -48,6 +48,9 @@ def cleanup():
 def train(args):
     torch.manual_seed(42)  # Set seed for reproducibility
 
+    local_rank = args.local_rank
+    torch.cuda.set_device(local_rank)
+
     # Distributed initialization
     deepspeed.init_distributed()
 

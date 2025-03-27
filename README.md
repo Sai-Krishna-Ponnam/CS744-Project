@@ -27,3 +27,5 @@ pip install -r requirments.txt
 cd vgg
 bash run.sh <MASTER_IP> <RANK>
 ```
+
+For deepspeed update g++ libs run `conda install -c conda-forge libstdcxx-ng`
