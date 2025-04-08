@@ -26,6 +26,13 @@ pip install -r requirments.txt
 ```
 cd vgg
 bash run.sh <MASTER_IP> <RANK>
+
+The deepspeed that works is CS744-Project/vgg/traindeepspeed.py and can be run by vgg/deepspeed.sh
+conda create -n cs744 python=3.11
+conda activate cs744
+pip install -r vgg/requirements.txt
+./deepspeed.sh
+
 ```
 
 For deepspeed update g++ libs run `conda install -c conda-forge libstdcxx-ng`

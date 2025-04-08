@@ -2,7 +2,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import deepspeed
+import vgg.traindeepspeed as traindeepspeed
 import torch.distributed as dist
 from torchvision import models, datasets, transforms
 from torch.utils.data import DataLoader, DistributedSampler
@@ -34,7 +34,7 @@ deepspeed_config = {
 # Initialize DeepSpeed
 def setup_deepspeed(args, model):
     parameters = filter(lambda p: p.requires_grad, model.parameters())
-    model, optimizer, _, _ = deepspeed.initialize(
+    model, optimizer, _, _ = traindeepspeed.initialize(
         args=args, model=model, model_parameters=parameters, config=deepspeed_config
     )
     return model, optimizer
@@ -52,7 +52,13 @@ def train(args):
     torch.cuda.set_device(local_rank)
 
     # Distributed initialization
-    deepspeed.init_distributed()
+    traindeepspeed.init_distributed()
+    
+    criterion = nn.CrossEntropyLoss().to(device)
+
+    optimizer = torch.optim.SGD(model.parameters(), args.lr,
+                                momentum=args.momentum,
+                                weight_decay=args.weight_decay)
 
     # Setup TensorBoard
     writer = SummaryWriter(log_dir="./runs/deepspeed_experiment")
@@ -128,7 +134,7 @@ def train(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DeepSpeed Training Script")
     parser.add_argument("--local_rank", type=int, default=-1, help="Local rank for distributed training")
-    args = deepspeed.add_config_arguments(parser)
+    args = traindeepspeed.add_config_arguments(parser)
     args = parser.parse_args()
 
     train(args)
