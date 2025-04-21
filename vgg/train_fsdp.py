@@ -65,7 +65,9 @@ def train():
 
     train_dataset = datasets.CIFAR10(root="./data", train=True, download=True, transform=transform)
     test_dataset = datasets.CIFAR10(root="./data", train=False, download=True, transform=transform)
-
+    train_dataset = datasets.FakeData(1281, (3, 224, 224), 1000, transforms.ToTensor())
+    test_dataset = datasets.FakeData(500, (3, 224, 224), 1000, transforms.ToTensor())
+    print("Demo Data")
     train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=rank)
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=False, sampler=train_sampler)
     test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False)
