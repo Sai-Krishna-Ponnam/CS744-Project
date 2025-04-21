@@ -23,6 +23,7 @@ from torchvision import transforms
 from torchvision import datasets
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import Subset
+import wandb
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
@@ -111,6 +112,7 @@ def main():
 
     # Write the losses to an excel file
     if dist.get_rank() ==0:
+        wandb.finish()
         all_losses = [torch.empty_like(t_losses) for _ in range(ngpus_per_node)]
         dist.gather(tensor=t_losses, gather_list=all_losses,dst=0)
     else:
@@ -134,6 +136,7 @@ def main():
                 sheet1.cell(row=row_idx + 2, column = rank+1 + ngpus_per_node + 3, value = float(gpu_acc1s))
         workbook.save(outputfile)
 
+
 def main_worker(gpu, ngpus_per_node, args):
     global best_acc1
     args.gpu = gpu
@@ -155,6 +158,7 @@ def main_worker(gpu, ngpus_per_node, args):
             device = torch.device('cuda:{}'.format(args.gpu))
         else:
             device = torch.device("cuda")
+        
     else:
         torch.cuda.set_device(args.local_rank)
         device = torch.device("cuda", args.local_rank)
@@ -162,7 +166,10 @@ def main_worker(gpu, ngpus_per_node, args):
     def print_rank_0(msg):
         if args.local_rank <=0:
             print(msg)
-
+            
+    if dist.get_rank() == 0:
+        wandb.init(project="your_project_name", config=args)
+        wandb.watch(model, log="all")
     args.batch_size = int(args.batch_size / ngpus_per_node)
     if not torch.cuda.is_available():# and not torch.backends.mps.is_available():
         print('using CPU, this will be slow')
@@ -289,6 +296,11 @@ def main_worker(gpu, ngpus_per_node, args):
                 'optimizer' : optimizer.state_dict(),
                 'scheduler' : scheduler.state_dict()
             }, is_best)
+           
+        if dist.get_rank() == 0:
+            wandb.log({"epoch": epoch, "loss": this_loss, "acc1": acc1})
+            print(f"Epoch {epoch}: Loss: {this_loss:.4f}, Acc@1: {acc1:.2f}")
+
 
     return (losses, acc1s)
 
