@@ -9,6 +9,16 @@ from torch.utils.data import DataLoader, DistributedSampler
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import ShardingStrategy
 from torch.utils.tensorboard import SummaryWriter
+import wandb
+import numpy as np
+import random
+
+seed = 42
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+random.seed(seed)
+np.random.seed(seed)
 
 
 def setup():
@@ -41,6 +51,10 @@ def compute_accuracy(model, dataloader, device, criterion):
 
 
 def train():
+    NUM_EPOCHS = 5
+    BATCH_SIZE = 32
+    lr = 0.001
+
     """Distributed training function."""
     setup()
 
@@ -55,6 +69,20 @@ def train():
     model = models.vgg16(weights=None).cuda(local_rank)
     model = FSDP(model, sharding_strategy=ShardingStrategy.FULL_SHARD)
 
+    if dist.get_rank() == 0:
+        wandb.init(
+            project="vgg16-fsdp",
+            name=f"run-rank-{dist.get_rank()}",
+            config={
+                "epochs": NUM_EPOCHS,
+                "batch_size": BATCH_SIZE,
+                "lr": lr,
+                "model": "vgg16",
+                "sharding_strategy": "FULL_SHARD",
+            }
+        )
+        wandb.watch(model, log="all")
+
     # Dataset & Dataloader
     transform = transforms.Compose(
         [
@@ -62,22 +90,24 @@ def train():
             transforms.ToTensor(),
         ]
     )
+    if local_rank == 0:
+        datasets.CIFAR10(root="./data", train=True, download=True)
+        datasets.CIFAR10(root="./data", train=False, download=True)
+    dist.barrier()
 
-    train_dataset = datasets.CIFAR10(root="./data", train=True, download=True, transform=transform)
-    test_dataset = datasets.CIFAR10(root="./data", train=False, download=True, transform=transform)
-    train_dataset = datasets.FakeData(1281, (3, 224, 224), 1000, transforms.ToTensor())
-    test_dataset = datasets.FakeData(500, (3, 224, 224), 1000, transforms.ToTensor())
-    print("Demo Data")
+    train_dataset = datasets.CIFAR10(root="./data", train=True, download=False, transform=transform)
+    test_dataset = datasets.CIFAR10(root="./data", train=False, download=False, transform=transform)
+
     train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=rank)
-    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=False, sampler=train_sampler)
-    test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=False, sampler=train_sampler)
+    test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
     # Loss & Optimizer
     criterion = nn.CrossEntropyLoss().cuda(local_rank)
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
 
     # Training loop
-    for epoch in range(2):
+    for epoch in range(NUM_EPOCHS):
         model.train()
         train_sampler.set_epoch(epoch)
         total = 0
@@ -105,17 +135,27 @@ def train():
         print(f"Rank {rank}, Epoch [{epoch+1}/5], Loss: {loss.item():.4f}, Train Accuracy: {accuracy:.2f}%")
         compute_accuracy(model, test_dataloader, local_rank, criterion)
 
+        if rank == 0:
+            wandb.log({
+                "epoch": epoch + 1,
+                "train_loss": loss.item(),
+                "train_accuracy": accuracy,
+            })
+
         writer.add_scalar("Loss/train", loss.item(), epoch)
         writer.add_scalar("Accuracy/train", accuracy, epoch)
 
         # Optionally, add model parameters, gradients, histograms, etc.
-        writer.add_histogram("model_weights", model.parameters(), epoch)
+#        writer.add_histogram("model_weights", model.parameters(), epoch)
 
     if rank == 0:
         torch.save(model.module.state_dict(), "vgg16_fsdp.pth")
+        wandb.save("vgg16_fsdp.pth")
         print("Model saved successfully!")
 
     cleanup()
+    if dist.get_rank() == 0:
+        wandb.finish()
 
 
 if __name__ == "__main__":

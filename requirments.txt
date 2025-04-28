@@ -1,8 +1,11 @@
-torch
-torchvision
-torchaudio
+torch==2.6.0
+torchvision==0.21.0
+torchaudio==2.6.0
+--extra-index-url https://download.pytorch.org/whl/cu124
 matplotlib
 numpy
 pandas
 deepspeed
 tensorboard
+wandb
+nvidia-ml-py3
