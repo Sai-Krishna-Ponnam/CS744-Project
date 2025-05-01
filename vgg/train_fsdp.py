@@ -142,12 +142,6 @@ def train():
                 "train_accuracy": accuracy,
             })
 
-        writer.add_scalar("Loss/train", loss.item(), epoch)
-        writer.add_scalar("Accuracy/train", accuracy, epoch)
-
-        # Optionally, add model parameters, gradients, histograms, etc.
-#        writer.add_histogram("model_weights", model.parameters(), epoch)
-
     if rank == 0:
         torch.save(model.module.state_dict(), "vgg16_fsdp.pth")
         wandb.save("vgg16_fsdp.pth")
@@ -159,6 +153,4 @@ def train():
 
 
 if __name__ == "__main__":
-    writer = SummaryWriter(log_dir="./runs/vgg_fsdp")
     train()
-    writer.close()
