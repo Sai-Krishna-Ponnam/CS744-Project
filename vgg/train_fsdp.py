@@ -71,8 +71,8 @@ def train():
 
     if dist.get_rank() == 0:
         wandb.init(
-            project="vgg16-fsdp",
-            name=f"run-rank-{dist.get_rank()}",
+            project="cs744",
+            name=f"fsdp-vgg16-rank-{dist.get_rank()}",
             config={
                 "epochs": NUM_EPOCHS,
                 "batch_size": BATCH_SIZE,
@@ -154,7 +154,7 @@ def train():
         print("Model saved successfully!")
 
     cleanup()
-    if dist.get_rank() == 0:
+    if rank == 0:
         wandb.finish()
 
 
