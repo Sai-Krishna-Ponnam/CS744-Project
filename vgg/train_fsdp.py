@@ -51,8 +51,8 @@ def compute_accuracy(model, dataloader, device, criterion):
 
 
 def train():
-    NUM_EPOCHS = 5
-    BATCH_SIZE = 32
+    NUM_EPOCHS = 10
+    BATCH_SIZE = 128
     lr = 0.001
 
     """Distributed training function."""
@@ -129,10 +129,10 @@ def train():
 
             step += 1
             if step % 100 == 0 and rank == 0:  # Log only from rank 0
-                print(f"Rank {rank}, Step {step}, Epoch [{epoch+1}/5], Loss: {loss.item():.4f}")
+                print(f"Rank {rank}, Step {step}, Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {loss.item():.4f}")
 
         accuracy = 100 * correct / total
-        print(f"Rank {rank}, Epoch [{epoch+1}/5], Loss: {loss.item():.4f}, Train Accuracy: {accuracy:.2f}%")
+        print(f"Rank {rank}, Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {loss.item():.4f}, Train Accuracy: {accuracy:.2f}%")
         compute_accuracy(model, test_dataloader, local_rank, criterion)
 
         if rank == 0:
