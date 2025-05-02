@@ -32,7 +32,7 @@ model_names = sorted(name for name in models.__dict__
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 parser.add_argument('data', metavar='DIR', nargs='?', default='imagenet',
                     help='path to dataset (default: imagenet)')
-parser.add_argument('-a', '--arch', metavar='ARCH', default='vgg16',)
+parser.add_argument('-a', '--arch', metavar='ARCH', default='vit_b_16',)
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=5, type=int, metavar='N',
@@ -108,33 +108,12 @@ def main():
 
     args.world_size = ngpus_per_node * args.world_size
     t_losses, t_acc1s = main_worker(args.gpu, ngpus_per_node, args)
-    #dist.barrier()
+    dist.barrier()
 
     # Write the losses to an excel file
     if dist.get_rank() ==0:
-        wandb.finish()
-        all_losses = [torch.empty_like(t_losses) for _ in range(ngpus_per_node)]
-        dist.gather(tensor=t_losses, gather_list=all_losses,dst=0)
-    else:
-        dist.gather(tensor=t_losses, dst=0)
-
-    if dist.get_rank() ==0:
-        all_acc1s = [torch.empty_like(t_acc1s) for _ in range(ngpus_per_node)]
-        dist.gather(tensor=t_acc1s, gather_list=all_acc1s,dst=0)
-    else:
-        dist.gather(tensor=t_acc1s, dst=0)
-
-    if dist.get_rank() == 0:
-        outputfile = "Acc_loss_log.xlsx"
-        workbook = Workbook()
-        sheet1 = workbook.active
-        sheet1.cell(row= 1, column = 1, value = "Loss")
-        sheet1.cell(row= 1, column = ngpus_per_node + 4, value = "Acc")
-        for rank in range(ngpus_per_node):
-            for row_idx, (gpu_losses, gpu_acc1s) in enumerate(zip(all_losses[rank], all_acc1s[rank])):
-                sheet1.cell(row=row_idx + 2, column = rank+1, value = float(gpu_losses))
-                sheet1.cell(row=row_idx + 2, column = rank+1 + ngpus_per_node + 3, value = float(gpu_acc1s))
-        workbook.save(outputfile)
+        run.finish()
+       
 
 
 def main_worker(gpu, ngpus_per_node, args):
@@ -166,10 +145,44 @@ def main_worker(gpu, ngpus_per_node, args):
     def print_rank_0(msg):
         if args.local_rank <=0:
             print(msg)
-            
-    if dist.get_rank() == 0:
-        wandb.init(project="your_project_name", config=args)
-        wandb.watch(model, log="all")
+    local_rank = int(os.environ["LOCAL_RANK"])
+    global_rank = dist.get_rank()
+    world_size = dist.get_world_size()
+
+
+    # Initialize wandb in shared mode.
+    wandb_run_id = "VIT" + args.arch + "-" + str(args.batch_size) + "-" + args.deepspeed_config[40:50]
+    settings = wandb.Settings(
+        mode="shared",
+        x_stats_sampling_interval=1,
+        # GPU index to capture metrics from.
+        # In DDP, each process has a single GPU, but all GPUs on the node may be visible.
+        x_stats_gpu_device_ids=[local_rank],
+        x_label=f"rank-{global_rank}",
+    )
+    if global_rank != 0:
+        # Do not upload wandb files except console logs.
+        settings.x_primary = False
+        # Do not change the state of the run on run.finish().
+        settings.x_update_finish_state = False
+
+
+    run = wandb.init(
+        project="your_project_name",
+        id=wandb_run_id,
+        config={
+            "epochs": args.epochs,
+            "batch_size": args.batch_size,
+            "learning_rate": args.lr,
+            "world_size": world_size,
+        },
+        settings=settings,
+    )
+
+
+    # Update the run metadata with the number of CPUs and GPUs in the cluster.
+    run._metadata.gpu_count = world_size
+
     args.batch_size = int(args.batch_size / ngpus_per_node)
     if not torch.cuda.is_available():# and not torch.backends.mps.is_available():
         print('using CPU, this will be slow')
@@ -220,7 +233,7 @@ def main_worker(gpu, ngpus_per_node, args):
     # Data loading code
     if args.dummy:
         print("=> Dummy data is used!")
-        train_dataset = datasets.FakeData(1281, (3, 224, 224), 1000, transforms.ToTensor())
+        train_dataset = datasets.FakeData(12810, (3, 224, 224), 1000, transforms.ToTensor())
         val_dataset = datasets.FakeData(500, (3, 224, 224), 1000, transforms.ToTensor())
     else:
         traindir = os.path.join(args.data, 'train')
@@ -297,8 +310,9 @@ def main_worker(gpu, ngpus_per_node, args):
                 'scheduler' : scheduler.state_dict()
             }, is_best)
            
+        
         if dist.get_rank() == 0:
-            wandb.log({"epoch": epoch, "loss": this_loss, "acc1": acc1})
+            run.log({"epoch": epoch, "loss": this_loss, "acc1": acc1})
             print(f"Epoch {epoch}: Loss: {this_loss:.4f}, Acc@1: {acc1:.2f}")
 
 

@@ -1,0 +1,74 @@
+{
+  "os": "Linux-6.8.0-58-generic-x86_64-with-glibc2.39",
+  "python": "CPython 3.11.11",
+  "startedAt": "2025-04-29T17:21:56.655201Z",
+  "args": [
+    "--local_rank=0",
+    "-a",
+    "vgg16",
+    "--deepspeed",
+    "--deepspeed_config",
+    "/users/devd/CS744-Project/vgg/config/ds_config1.json",
+    "--dummy",
+    "-b",
+    "128",
+    "--epochs",
+    "30"
+  ],
+  "program": "/users/devd/CS744-Project/vgg/traindeepspeed.py",
+  "codePath": "vgg/traindeepspeed.py",
+  "git": {
+    "remote": "https://github.com/Sai-Krishna-Ponnam/CS744-Project.git",
+    "commit": "22824271992236b1950015f11af438da92a6fec6"
+  },
+  "email": "dmehrotra@wisc.edu",
+  "root": "/users/devd/CS744-Project/vgg",
+  "host": "node0.ponnam2-255284.uwmadison744-s25-pg0.wisc.cloudlab.us",
+  "executable": "/users/devd/miniconda3/envs/cs744/bin/python",
+  "codePathLocal": "traindeepspeed.py",
+  "cpu_count": 48,
+  "cpu_count_logical": 96,
+  "gpu": "NVIDIA A100-SXM4-40GB",
+  "gpu_count": 8,
+  "disk": {
+    "/": {
+      "total": "67050090496",
+      "used": "35346006016"
+    }
+  },
+  "memory": {
+    "total": "540601532416"
+  },
+  "cpu": {
+    "count": 48,
+    "countLogical": 96
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA A100-SXM4-40GB",
+      "memoryTotal": "42949672960",
+      "cudaCores": 6912,
+      "architecture": "Ampere"
+    },
+    {
+      "name": "NVIDIA A100-SXM4-40GB",
+      "memoryTotal": "42949672960",
+      "cudaCores": 6912,
+      "architecture": "Ampere"
+    },
+    {
+      "name": "NVIDIA A100-SXM4-40GB",
+      "memoryTotal": "42949672960",
+      "cudaCores": 6912,
+      "architecture": "Ampere"
+    },
+    {
+      "name": "NVIDIA A100-SXM4-40GB",
+      "memoryTotal": "42949672960",
+      "cudaCores": 6912,
+      "architecture": "Ampere"
+    }
+  ],
+  "cudaVersion": "12.4",
+  "_user_modified": true
+}
